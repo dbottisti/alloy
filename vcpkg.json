@@ -1,4 +1,10 @@
 {
   "name": "alloy",
-  "version": "0.1"
+  "version": "0.1",
+  "dependencies": [
+    {
+      "name": "catch2",
+      "host": true
+    }
+  ]
 }
