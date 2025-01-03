@@ -47,6 +47,12 @@ public:
     }
 
     bool is_none() const { return !is_some_; }
+    template <typename Function>
+    bool is_none_or(Function f) const {
+        static_assert(detail::is_callable<Function, T>::value,
+                      "Function must be callable with an object of type T");
+        return is_none() || f(value_);
+    }
 
 private:
     T value_;
@@ -91,9 +97,14 @@ SCENARIO("Option") {
             const auto result = option.is_none();
             THEN("the result is true") { CHECK(result == true); }
         }
+
+        WHEN("calling is_none_or") {
+            const auto result = option.is_none_or(greater_than_one);
+            THEN("the result is true") { CHECK(result == true); }
+        }
     }
 
-    GIVEN("an Option with a positive value") {
+    GIVEN("an Option with a value greater than 1") {
         Option<std::uint32_t> option{Some(42u)};
 
         WHEN("calling is_some") {
@@ -110,6 +121,11 @@ SCENARIO("Option") {
             const auto result = option.is_none();
             THEN("the result is false") { CHECK(result == false); }
         }
+
+        WHEN("calling is_none_or") {
+            const auto result = option.is_none_or(greater_than_one);
+            THEN("the result is true") { CHECK(result == true); }
+        }
     }
 
     GIVEN("an Option with a zero value") {
@@ -117,6 +133,11 @@ SCENARIO("Option") {
 
         WHEN("calling is_some_and") {
             const auto result = option.is_some_and(greater_than_one);
+            THEN("the result is false") { CHECK(result == false); }
+        }
+
+        WHEN("calling is_none_or") {
+            const auto result = option.is_none_or(greater_than_one);
             THEN("the result is false") { CHECK(result == false); }
         }
     }
