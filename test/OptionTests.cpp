@@ -31,14 +31,54 @@ private:
 template <typename T>
 class Option {
 public:
-    explicit Option(detail::None) : value_{}, is_some_{false} {}
+    ~Option() {
+        if (is_some()) {
+            value_.~T();
+        }
+    }
+    Option(const Option&) noexcept = default;
+    Option(Option&&) noexcept = default;
+
+    Option& operator=(const Option& other) noexcept {
+        if (is_some() && other.is_some()) {
+            value_ = other.value_;
+        } else if (is_some()) {
+            // other is None
+            value_.~T();
+            filler_ = true;
+        } else if (other.is_some()) {
+            // *this is None
+            new (&value_) T{other.value_};
+        }
+
+        tag_ = other.tag_;
+        return *this;
+    }
+    Option& operator=(Option&& other) noexcept {
+        if (is_some() && other.is_some()) {
+            value_ = std::move(other.value_);
+        } else if (is_some()) {
+            // other is None
+            value_.~T();
+            filler_ = true;
+        } else if (other.is_some()) {
+            // *this is None
+            new (&value_) T{std::move(other.value_)};
+        }
+
+        tag_ = other.tag_;
+        return *this;
+    }
+
+    explicit Option(detail::None) {}
 
     template <typename U,
               typename = std::enable_if_t<std::is_convertible<U, T>::value>>
-    explicit Option(detail::Some<U> some)
-        : value_{std::move(some.value_)}, is_some_{true} {}
+    explicit Option(detail::Some<U> some) : tag_{Tag::SOME} {
+        new (&value_) T{std::move(some.value_)};
+    }
 
-    bool is_some() const { return is_some_; }
+    bool is_some() const { return tag_ == Tag::SOME; }
     template <typename Function>
     bool is_some_and(Function f) const {
         static_assert(detail::is_callable<Function, T>::value,
@@ -46,7 +86,7 @@ public:
         return is_some() && f(value_);
     }
 
-    bool is_none() const { return !is_some_; }
+    bool is_none() const { return tag_ == Tag::NONE; }
     template <typename Function>
     bool is_none_or(Function f) const {
         static_assert(detail::is_callable<Function, T>::value,
@@ -55,8 +95,12 @@ public:
     }
 
 private:
-    T value_;
-    bool is_some_ = false;
+    enum class Tag { NONE, SOME };
+    union {
+        bool filler_ = true;
+        T value_;
+    };
+    Tag tag_ = Tag::NONE;
 };
 
 // Helper functions
@@ -74,6 +118,17 @@ static constexpr detail::None None;
 #include <cstdio>
 
 #include <catch2/catch_test_macros.hpp>
+
+class NotDefaultConstructible {
+    explicit NotDefaultConstructible(std::int32_t) {}
+};
+
+TEST_CASE(
+    "An option can be constructed from a non-default constructible type") {
+    using namespace alloy;
+    Option<NotDefaultConstructible> option{None};
+    (void)option;
+}
 
 SCENARIO("Option") {
     using namespace alloy;
