@@ -1,6 +1,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "detail/is_callable.hpp"
+
 namespace alloy {
 
 // Forward declarations
@@ -37,6 +39,14 @@ public:
         : value_{std::move(some.value_)}, is_some_{true} {}
 
     bool is_some() const { return is_some_; }
+    template <typename Function>
+    bool is_some_and(Function f) const {
+        static_assert(detail::is_callable<Function, T>::value,
+                      "Function must be callable with an object of type T");
+        return is_some() && f(value_);
+    }
+
+    bool is_none() const { return !is_some_; }
 
 private:
     T value_;
@@ -62,21 +72,52 @@ static constexpr detail::None None;
 SCENARIO("Option") {
     using namespace alloy;
 
-    GIVEN("An empty Option") {
+    const auto greater_than_one = [](const auto x) { return x > 1; };
+
+    GIVEN("an empty Option") {
         Option<std::uint32_t> option{None};
 
         WHEN("calling is_some") {
             const auto result = option.is_some();
             THEN("the result is false") { CHECK(result == false); }
         }
+
+        WHEN("calling is_some_and") {
+            const auto result = option.is_some_and(greater_than_one);
+            THEN("the result is false") { CHECK(result == false); }
+        }
+
+        WHEN("calling is_none") {
+            const auto result = option.is_none();
+            THEN("the result is true") { CHECK(result == true); }
+        }
     }
 
-    GIVEN("An Option with a value") {
+    GIVEN("an Option with a positive value") {
         Option<std::uint32_t> option{Some(42u)};
 
         WHEN("calling is_some") {
             const auto result = option.is_some();
             THEN("the result is true") { CHECK(result == true); }
+        }
+
+        WHEN("calling is_some_and") {
+            const auto result = option.is_some_and(greater_than_one);
+            THEN("the result is true") { CHECK(result == true); }
+        }
+
+        WHEN("calling is_none") {
+            const auto result = option.is_none();
+            THEN("the result is false") { CHECK(result == false); }
+        }
+    }
+
+    GIVEN("an Option with a zero value") {
+        Option<std::uint32_t> option{Some(0u)};
+
+        WHEN("calling is_some_and") {
+            const auto result = option.is_some_and(greater_than_one);
+            THEN("the result is false") { CHECK(result == false); }
         }
     }
 }
